@@ -41,10 +41,37 @@ type ProjectScanner struct {
 	ClientsPath string
 }
 
-// DiscoverProjects scans for all proj-* directories
+// DiscoverProjects scans for all proj-* directories and special projects
 func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 	var projects []Project
 
+	// First, add Yinsen as a special project in the alpha-omega directory
+	yinsenPath := filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
+	if _, err := os.Stat(yinsenPath); err == nil {
+		project := Project{
+			Name:      "Alpha-Omega",
+			Path:      yinsenPath,
+			HasYinsen: true,
+		}
+
+		// Try to read readme for description
+		readmePath := filepath.Join(yinsenPath, "readme.md")
+		if content, err := os.ReadFile(readmePath); err == nil {
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, "# ") {
+					project.Description = strings.TrimPrefix(line, "# ")
+					break
+				}
+			}
+		}
+
+		// Determine status based on task activity
+		project.Status = ps.determineProjectStatus(yinsenPath)
+		projects = append(projects, project)
+	}
+
+	// Then scan for proj-* directories
 	entries, err := os.ReadDir(ps.ClientsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read clients directory: %w", err)
@@ -90,7 +117,13 @@ func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 func (ps *ProjectScanner) GetProjectTasks(projectName string) ([]Task, error) {
 	var tasks []Task
 
-	yinsenPath := filepath.Join(ps.ClientsPath, projectName, "yinsen")
+	var yinsenPath string
+	if projectName == "Alpha-Omega" {
+		// Special case for Alpha-Omega project with Yinsen directory (with trailing space)
+		yinsenPath = filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
+	} else {
+		yinsenPath = filepath.Join(ps.ClientsPath, projectName, "yinsen")
+	}
 
 	// Define kanban directories and their status
 	kanbanDirs := map[string]string{
