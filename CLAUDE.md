@@ -1,0 +1,2 @@
+- When working on a task, move it to the 2_dev folder. When the task is complete, move it to 3_qa. Submit a pull request for merging. Once the pull request is merged, move the task to 4_done.
+- Remember to make a feature branch first before every edit
