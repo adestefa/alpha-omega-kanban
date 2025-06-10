@@ -22,6 +22,10 @@ type Project struct {
 	Status      string `json:"status"`
 	Description string `json:"description"`
 	HasYinsen   bool   `json:"has_yinsen"`
+	Priority    string `json:"priority"`
+	Client      string `json:"client"`
+	Deadline    string `json:"deadline"`
+	TaskCount   int    `json:"task_count"`
 }
 
 // Task represents a task in the kanban system
@@ -41,10 +45,32 @@ type ProjectScanner struct {
 	ClientsPath string
 }
 
-// DiscoverProjects scans for all proj-* directories
+// DiscoverProjects scans for all proj-* directories and special projects
 func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 	var projects []Project
 
+	// First, add Yinsen as a special project in the alpha-omega directory
+	yinsenPath := filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
+	if _, err := os.Stat(yinsenPath); err == nil {
+		project := Project{
+			Name:      "Alpha-Omega",
+			Path:      yinsenPath,
+			HasYinsen: true,
+		}
+
+		// Try to read readme for metadata
+		ps.parseProjectMetadata(&project, yinsenPath)
+
+		// Determine status based on task activity
+		project.Status = ps.determineProjectStatus(yinsenPath)
+		
+		// Count tasks
+		project.TaskCount = ps.countTotalTasks(yinsenPath)
+		
+		projects = append(projects, project)
+	}
+
+	// Then scan for proj-* directories
 	entries, err := os.ReadDir(ps.ClientsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read clients directory: %w", err)
@@ -63,20 +89,14 @@ func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 			if _, err := os.Stat(yinsenPath); err == nil {
 				project.HasYinsen = true
 
-				// Try to read readme for description
-				readmePath := filepath.Join(yinsenPath, "readme.md")
-				if content, err := os.ReadFile(readmePath); err == nil {
-					lines := strings.Split(string(content), "\n")
-					for _, line := range lines {
-						if strings.HasPrefix(line, "# ") {
-							project.Description = strings.TrimPrefix(line, "# ")
-							break
-						}
-					}
-				}
+				// Try to read readme for metadata
+				ps.parseProjectMetadata(&project, yinsenPath)
 
 				// Determine status based on task activity
 				project.Status = ps.determineProjectStatus(yinsenPath)
+				
+				// Count tasks
+				project.TaskCount = ps.countTotalTasks(yinsenPath)
 			}
 
 			projects = append(projects, project)
@@ -90,7 +110,13 @@ func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 func (ps *ProjectScanner) GetProjectTasks(projectName string) ([]Task, error) {
 	var tasks []Task
 
-	yinsenPath := filepath.Join(ps.ClientsPath, projectName, "yinsen")
+	var yinsenPath string
+	if projectName == "Alpha-Omega" {
+		// Special case for Alpha-Omega project with Yinsen directory (with trailing space)
+		yinsenPath = filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
+	} else {
+		yinsenPath = filepath.Join(ps.ClientsPath, projectName, "yinsen")
+	}
 
 	// Define kanban directories and their status
 	kanbanDirs := map[string]string{
@@ -222,6 +248,79 @@ func (ps *ProjectScanner) countTasksInDir(dirPath string) int {
 		}
 	}
 	return count
+}
+
+// parseProjectMetadata extracts metadata from project readme files
+func (ps *ProjectScanner) parseProjectMetadata(project *Project, yinsenPath string) {
+	readmePath := filepath.Join(yinsenPath, "readme.md")
+	content, err := os.ReadFile(readmePath)
+	if err != nil {
+		// Try parent directory readme
+		parentPath := filepath.Dir(yinsenPath)
+		readmePath = filepath.Join(parentPath, "readme.md")
+		content, err = os.ReadFile(readmePath)
+		if err != nil {
+			return
+		}
+	}
+
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Extract title as description
+		if strings.HasPrefix(line, "# ") && project.Description == "" {
+			project.Description = strings.TrimPrefix(line, "# ")
+		}
+		
+		// Look for metadata in **Key:** Value format
+		if strings.Contains(line, "**Status:**") {
+			parts := strings.SplitN(line, "**Status:**", 2)
+			if len(parts) > 1 {
+				project.Status = strings.TrimSpace(parts[1])
+			}
+		} else if strings.Contains(line, "**Priority:**") {
+			parts := strings.SplitN(line, "**Priority:**", 2)
+			if len(parts) > 1 {
+				project.Priority = strings.TrimSpace(parts[1])
+			}
+		} else if strings.Contains(line, "**Client:**") {
+			parts := strings.SplitN(line, "**Client:**", 2)
+			if len(parts) > 1 {
+				project.Client = strings.TrimSpace(parts[1])
+			}
+		} else if strings.Contains(line, "**Deadline:**") {
+			parts := strings.SplitN(line, "**Deadline:**", 2)
+			if len(parts) > 1 {
+				project.Deadline = strings.TrimSpace(parts[1])
+			}
+		} else if strings.Contains(line, "**Project:**") && project.Description == "" {
+			parts := strings.SplitN(line, "**Project:**", 2)
+			if len(parts) > 1 {
+				project.Description = strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	
+	// Default values
+	if project.Priority == "" {
+		project.Priority = "Medium"
+	}
+	if project.Client == "" {
+		project.Client = "Satori Tech"
+	}
+}
+
+// countTotalTasks counts all tasks across kanban directories
+func (ps *ProjectScanner) countTotalTasks(yinsenPath string) int {
+	total := 0
+	dirs := []string{"1_queue", "2_dev", "3_qa", "4_done"}
+	
+	for _, dir := range dirs {
+		total += ps.countTasksInDir(filepath.Join(yinsenPath, dir))
+	}
+	
+	return total
 }
 
 // WebSocket upgrader

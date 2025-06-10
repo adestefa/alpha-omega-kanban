@@ -29,7 +29,8 @@ Yinsen, please find the below tasks we will work on togther. You will first help
 1. [ ] 
 
 ## Development Tasks
-1. [ ] TASK:1 Add yinsen to the Alpha-Omega project, and add it to the kanban board as a selection in the dropdown menu.
-
+1. [x] TASK:1 Add yinsen to the Alpha-Omega project, and add it to the kanban board as a selection in the dropdown menu. (Completed: 2025-01-06)
+2. [ ] TASK:2 update the leadspace to include informaiton about the project when I select it from the dropdown menu.
+3. [ ] TASK:3 Hook up the Start Claude Code button to claude code. Have it run with a prompt >claude "execute task <task number>"
 
 

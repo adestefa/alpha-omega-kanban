@@ -64,8 +64,13 @@
                         <i class="fas fa-robot mr-2"></i>
                         Alpha-Omega
                     </div>
-                    <div class="text-sm text-gray-400">
-                        Satori AI Development Command Center
+                    <div class="flex flex-col">
+                        <div class="text-sm text-gray-400">
+                            Satori AI Development Command Center
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            v1.1.0
+                        </div>
                     </div>
                 </div>
                 
@@ -83,6 +88,66 @@
             </div>
         </div>
     </header>
+
+    <!-- Project Information Leadspace -->
+    <section id="project-leadspace" class="hidden bg-gradient-to-r from-blue-900 to-purple-900 border-b border-gray-800">
+        <div class="container mx-auto px-6 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Project Overview -->
+                <div class="col-span-2">
+                    <h1 id="leadspace-project-name" class="text-3xl font-bold text-white mb-2">Select a Project</h1>
+                    <p id="leadspace-description" class="text-gray-300 mb-4">Choose a project from the dropdown to view its details and kanban board</p>
+                    
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <div class="bg-black bg-opacity-30 rounded-lg p-4">
+                            <div class="text-xs text-gray-400 uppercase mb-1">Client</div>
+                            <div id="leadspace-client" class="text-white font-medium">-</div>
+                        </div>
+                        <div class="bg-black bg-opacity-30 rounded-lg p-4">
+                            <div class="text-xs text-gray-400 uppercase mb-1">Priority</div>
+                            <div id="leadspace-priority" class="text-white font-medium">-</div>
+                        </div>
+                        <div class="bg-black bg-opacity-30 rounded-lg p-4">
+                            <div class="text-xs text-gray-400 uppercase mb-1">Description</div>
+                            <div id="leadspace-description-short" class="text-white font-medium text-sm">-</div>
+                        </div>
+                        <div class="bg-black bg-opacity-30 rounded-lg p-4">
+                            <div class="text-xs text-gray-400 uppercase mb-1">Deadline</div>
+                            <div id="leadspace-deadline" class="text-white font-medium">-</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Project Stats -->
+                <div class="flex flex-col justify-center">
+                    <div class="bg-black bg-opacity-30 rounded-lg p-6">
+                        <div class="text-center mb-4">
+                            <div class="text-5xl font-bold text-blue-400" id="leadspace-task-count">0</div>
+                            <div class="text-gray-400">Total Tasks</div>
+                        </div>
+                        <div class="flex justify-around text-center">
+                            <div>
+                                <div class="text-2xl font-semibold text-yellow-400" id="leadspace-queue-count">0</div>
+                                <div class="text-xs text-gray-400">Queue</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-semibold text-blue-400" id="leadspace-dev-count">0</div>
+                                <div class="text-xs text-gray-400">Dev</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-semibold text-pink-400" id="leadspace-qa-count">0</div>
+                                <div class="text-xs text-gray-400">QA</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-semibold text-green-400" id="leadspace-done-count">0</div>
+                                <div class="text-xs text-gray-400">Done</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Main Dashboard -->
     <main class="container mx-auto px-6 py-8">
@@ -302,6 +367,7 @@
             async selectProject(projectName) {
                 if (!projectName) {
                     this.hideKanbanBoard();
+                    this.hideLeadspace();
                     return;
                 }
 
@@ -311,6 +377,7 @@
                     const response = await fetch(`/api/projects/${projectName}/tasks`);
                     this.tasks = await response.json();
                     this.updateProjectInfo();
+                    this.updateLeadspace();
                     this.renderKanbanBoard();
                 } catch (error) {
                     console.error('Failed to load tasks:', error);
@@ -426,6 +493,57 @@
                 document.getElementById('kanban-board').classList.add('hidden');
                 document.getElementById('empty-state').classList.remove('hidden');
                 document.getElementById('project-info').classList.add('hidden');
+            }
+
+            updateLeadspace() {
+                const leadspace = document.getElementById('project-leadspace');
+                if (!this.currentProject) {
+                    this.hideLeadspace();
+                    return;
+                }
+
+                leadspace.classList.remove('hidden');
+                
+                // Update project information
+                document.getElementById('leadspace-project-name').textContent = this.currentProject.name;
+                document.getElementById('leadspace-description').textContent = this.currentProject.description || 'No description available';
+                document.getElementById('leadspace-client').textContent = this.currentProject.client || 'N/A';
+                document.getElementById('leadspace-priority').textContent = this.currentProject.priority || 'Medium';
+                document.getElementById('leadspace-description-short').textContent = this.currentProject.description ? 
+                    (this.currentProject.description.length > 50 ? this.currentProject.description.substring(0, 50) + '...' : this.currentProject.description) : 'N/A';
+                document.getElementById('leadspace-deadline').textContent = this.currentProject.deadline || 'No deadline set';
+                document.getElementById('leadspace-task-count').textContent = this.currentProject.task_count || '0';
+                
+                // Update task distribution
+                const tasksByStatus = {
+                    queue: this.tasks.filter(t => t.status === 'queue').length,
+                    dev: this.tasks.filter(t => t.status === 'dev').length,
+                    qa: this.tasks.filter(t => t.status === 'qa').length,
+                    done: this.tasks.filter(t => t.status === 'done').length
+                };
+                
+                document.getElementById('leadspace-queue-count').textContent = tasksByStatus.queue;
+                document.getElementById('leadspace-dev-count').textContent = tasksByStatus.dev;
+                document.getElementById('leadspace-qa-count').textContent = tasksByStatus.qa;
+                document.getElementById('leadspace-done-count').textContent = tasksByStatus.done;
+                
+                // Color-code priority
+                const priorityEl = document.getElementById('leadspace-priority');
+                priorityEl.className = 'font-medium';
+                if (this.currentProject.priority) {
+                    const priority = this.currentProject.priority.toLowerCase();
+                    if (priority === 'high') {
+                        priorityEl.classList.add('text-red-400');
+                    } else if (priority === 'medium') {
+                        priorityEl.classList.add('text-yellow-400');
+                    } else {
+                        priorityEl.classList.add('text-green-400');
+                    }
+                }
+            }
+
+            hideLeadspace() {
+                document.getElementById('project-leadspace').classList.add('hidden');
             }
 
             async refreshDashboard() {
