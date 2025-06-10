@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha-Omega Dashboard | Satori AI Development Army</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .task-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid #e5e7eb;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .task-card.priority-high { border-left-color: #ef4444; }
+        .task-card.priority-medium { border-left-color: #f59e0b; }
+        .task-card.priority-low { border-left-color: #10b981; }
+        
+        .kanban-column {
+            min-height: 500px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+        
+        .queue-column { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+        .dev-column { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); }
+        .qa-column { background: linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%); }
+        .done-column { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); }
+        
+        .glow {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .project-status-active { color: #10b981; }
+        .project-status-pending { color: #f59e0b; }
+        .project-status-testing { color: #8b5cf6; }
+        .project-status-idle { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-mono">
+    <!-- Header -->
+    <header class="bg-black border-b border-gray-800">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="text-2xl font-bold text-blue-400">
+                        <i class="fas fa-robot mr-2"></i>
+                        Alpha-Omega
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        Satori AI Development Command Center
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-green-400 rounded-full pulse-dot"></div>
+                        <span class="text-sm text-gray-300">Live Monitoring</span>
+                    </div>
+                    
+                    <div id="connection-status" class="text-sm px-3 py-1 rounded bg-gray-800">
+                        <i class="fas fa-wifi mr-1"></i>
+                        <span>Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Project Selector -->
+        <div class="mb-8">
+            <div class="bg-gray-800 rounded-lg p-6 glow">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-blue-400">
+                        <i class="fas fa-folder-tree mr-2"></i>
+                        Project Control Center
+                    </h2>
+                    <button id="refresh-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Refresh
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Select Project</label>
+                        <select id="project-selector" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                            <option value="">Loading projects...</option>
+                        </select>
+                    </div>
+                    
+                    <div id="project-info" class="hidden">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Project Status</label>
+                        <div class="bg-gray-700 rounded px-3 py-2">
+                            <div class="flex items-center justify-between">
+                                <span id="project-status-text" class="font-medium">-</span>
+                                <span id="project-task-count" class="text-sm text-gray-400">0 tasks</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban Board -->
+        <div id="kanban-board" class="hidden">
+            <div class="grid grid-cols-4 gap-6">
+                <!-- Queue Column -->
+                <div class="kanban-column queue-column rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <i class="fas fa-inbox mr-2"></i>
+                            Queue
+                        </h3>
+                        <span id="queue-count" class="bg-yellow-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </div>
+                    <div id="queue-tasks" class="space-y-3">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Development Column -->
+                <div class="kanban-column dev-column rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <i class="fas fa-code mr-2"></i>
+                            Development
+                        </h3>
+                        <span id="dev-count" class="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </div>
+                    <div id="dev-tasks" class="space-y-3">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- QA Column -->
+                <div class="kanban-column qa-column rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <i class="fas fa-bug mr-2"></i>
+                            Testing
+                        </h3>
+                        <span id="qa-count" class="bg-pink-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </div>
+                    <div id="qa-tasks" class="space-y-3">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Done Column -->
+                <div class="kanban-column done-column rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-gray-800">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Completed
+                        </h3>
+                        <span id="done-count" class="bg-green-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                    </div>
+                    <div id="done-tasks" class="space-y-3">
+                        <!-- Tasks will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="text-center py-16">
+            <div class="text-6xl text-gray-600 mb-4">
+                <i class="fas fa-folder-open"></i>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-400 mb-2">Select a Project</h3>
+            <p class="text-gray-500">Choose a project from the dropdown to view its kanban board</p>
+        </div>
+    </main>
+
+    <!-- Task Modal -->
+    <div id="task-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold text-blue-400"></h3>
+                <button id="close-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="modal-content" class="text-gray-300">
+                <!-- Task details will be loaded here -->
+            </div>
+            <div class="mt-6 flex space-x-3">
+                <button id="start-task-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded transition-colors">
+                    <i class="fas fa-play mr-2"></i>
+                    Start Claude Code
+                </button>
+                <button id="view-file-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+                    <i class="fas fa-file-alt mr-2"></i>
+                    View File
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class AlphaOmegaDashboard {
+            constructor() {
+                this.projects = [];
+                this.currentProject = null;
+                this.tasks = [];
+                this.ws = null;
+                this.init();
+            }
+
+            async init() {
+                this.setupEventListeners();
+                this.connectWebSocket();
+                await this.loadProjects();
+            }
+
+            setupEventListeners() {
+                document.getElementById('project-selector').addEventListener('change', (e) => {
+                    this.selectProject(e.target.value);
+                });
+
+                document.getElementById('refresh-btn').addEventListener('click', () => {
+                    this.refreshDashboard();
+                });
+
+                document.getElementById('close-modal').addEventListener('click', () => {
+                    this.closeModal();
+                });
+
+                document.getElementById('start-task-btn').addEventListener('click', () => {
+                    this.startClaudeCode();
+                });
+            }
+
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                this.ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+                
+                this.ws.onopen = () => {
+                    this.updateConnectionStatus('Connected', 'green');
+                };
+                
+                this.ws.onclose = () => {
+                    this.updateConnectionStatus('Disconnected', 'red');
+                    setTimeout(() => this.connectWebSocket(), 5000);
+                };
+                
+                this.ws.onmessage = (event) => {
+                    if (event.data !== 'heartbeat') {
+                        this.handleWebSocketMessage(event.data);
+                    }
+                };
+            }
+
+            updateConnectionStatus(status, color) {
+                const statusEl = document.getElementById('connection-status');
+                statusEl.innerHTML = `<i class="fas fa-wifi mr-1"></i><span>${status}</span>`;
+                statusEl.className = `text-sm px-3 py-1 rounded bg-${color}-600`;
+            }
+
+            async loadProjects() {
+                try {
+                    const response = await fetch('/api/projects');
+                    this.projects = await response.json();
+                    this.populateProjectSelector();
+                } catch (error) {
+                    console.error('Failed to load projects:', error);
+                }
+            }
+
+            populateProjectSelector() {
+                const selector = document.getElementById('project-selector');
+                selector.innerHTML = '<option value="">Select a project...</option>';
+                
+                this.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.name;
+                    option.textContent = `${project.name} (${project.status})`;
+                    selector.appendChild(option);
+                });
+            }
+
+            async selectProject(projectName) {
+                if (!projectName) {
+                    this.hideKanbanBoard();
+                    return;
+                }
+
+                this.currentProject = this.projects.find(p => p.name === projectName);
+                
+                try {
+                    const response = await fetch(`/api/projects/${projectName}/tasks`);
+                    this.tasks = await response.json();
+                    this.updateProjectInfo();
+                    this.renderKanbanBoard();
+                } catch (error) {
+                    console.error('Failed to load tasks:', error);
+                }
+            }
+
+            updateProjectInfo() {
+                const infoEl = document.getElementById('project-info');
+                const statusEl = document.getElementById('project-status-text');
+                const countEl = document.getElementById('project-task-count');
+                
+                if (this.currentProject) {
+                    statusEl.textContent = this.currentProject.status;
+                    statusEl.className = `font-medium project-status-${this.currentProject.status.toLowerCase()}`;
+                    countEl.textContent = `${this.tasks.length} tasks`;
+                    infoEl.classList.remove('hidden');
+                }
+            }
+
+            renderKanbanBoard() {
+                const board = document.getElementById('kanban-board');
+                const emptyState = document.getElementById('empty-state');
+                
+                board.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+
+                const tasksByStatus = {
+                    queue: this.tasks.filter(t => t.status === 'queue'),
+                    dev: this.tasks.filter(t => t.status === 'dev'),
+                    qa: this.tasks.filter(t => t.status === 'qa'),
+                    done: this.tasks.filter(t => t.status === 'done')
+                };
+
+                Object.keys(tasksByStatus).forEach(status => {
+                    const container = document.getElementById(`${status}-tasks`);
+                    const count = document.getElementById(`${status}-count`);
+                    
+                    count.textContent = tasksByStatus[status].length;
+                    container.innerHTML = '';
+                    
+                    tasksByStatus[status].forEach(task => {
+                        container.appendChild(this.createTaskCard(task));
+                    });
+                });
+            }
+
+            createTaskCard(task) {
+                const card = document.createElement('div');
+                card.className = `task-card bg-white rounded-lg p-3 cursor-pointer priority-${task.priority.toLowerCase()}`;
+                
+                const typeIcon = task.type === 'defect' ? 'fas fa-bug text-red-500' : 'fas fa-tasks text-blue-500';
+                
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center space-x-2">
+                            <i class="${typeIcon}"></i>
+                            <span class="text-sm font-medium text-gray-600">${task.type.toUpperCase()}-${task.id}</span>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">${task.priority}</span>
+                    </div>
+                    <h4 class="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">${task.title}</h4>
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span>${task.project}</span>
+                        ${task.created_date ? `<span>${new Date(task.created_date).toLocaleDateString()}</span>` : ''}
+                    </div>
+                `;
+                
+                card.addEventListener('click', () => this.showTaskModal(task));
+                return card;
+            }
+
+            showTaskModal(task) {
+                const modal = document.getElementById('task-modal');
+                const title = document.getElementById('modal-title');
+                const content = document.getElementById('modal-content');
+                
+                title.textContent = `${task.type.toUpperCase()}-${task.id}: ${task.title}`;
+                content.innerHTML = `
+                    <div class="space-y-4">
+                        <div>
+                            <strong>Status:</strong> ${task.status}
+                        </div>
+                        <div>
+                            <strong>Priority:</strong> ${task.priority}
+                        </div>
+                        <div>
+                            <strong>Project:</strong> ${task.project}
+                        </div>
+                        <div>
+                            <strong>File Path:</strong> <code class="bg-gray-700 px-2 py-1 rounded text-sm">${task.file_path}</code>
+                        </div>
+                        ${task.created_date ? `<div><strong>Created:</strong> ${new Date(task.created_date).toLocaleString()}</div>` : ''}
+                    </div>
+                `;
+                
+                modal.classList.remove('hidden');
+                this.currentTask = task;
+            }
+
+            closeModal() {
+                document.getElementById('task-modal').classList.add('hidden');
+                this.currentTask = null;
+            }
+
+            startClaudeCode() {
+                if (this.currentTask) {
+                    alert(`Starting Claude Code for ${this.currentTask.type.toUpperCase()}-${this.currentTask.id}\n\nThis will spawn a Claude Code instance in:\n${this.currentTask.file_path}`);
+                    // TODO: Implement actual Claude Code spawning via MCP
+                }
+            }
+
+            hideKanbanBoard() {
+                document.getElementById('kanban-board').classList.add('hidden');
+                document.getElementById('empty-state').classList.remove('hidden');
+                document.getElementById('project-info').classList.add('hidden');
+            }
+
+            async refreshDashboard() {
+                await this.loadProjects();
+                if (this.currentProject) {
+                    await this.selectProject(this.currentProject.name);
+                }
+            }
+
+            handleWebSocketMessage(data) {
+                // Handle real-time updates
+                try {
+                    const message = JSON.parse(data);
+                    if (message.type === 'task_update') {
+                        this.refreshDashboard();
+                    }
+                } catch (error) {
+                    console.error('Failed to parse WebSocket message:', error);
+                }
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AlphaOmegaDashboard();
+        });
+    </script>
+</body>
+</html>
