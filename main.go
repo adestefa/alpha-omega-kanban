@@ -42,66 +42,113 @@ type Task struct {
 
 // ProjectScanner handles project discovery and parsing
 type ProjectScanner struct {
-	ClientsPath string
+	BasePaths []string
 }
 
 // DiscoverProjects scans for all proj-* directories and special projects
 func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 	var projects []Project
+	foundProjects := make(map[string]bool) // Track unique projects
 
-	// First, add Yinsen as a special project in the alpha-omega directory
-	yinsenPath := filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
-	if _, err := os.Stat(yinsenPath); err == nil {
-		project := Project{
-			Name:      "Alpha-Omega",
-			Path:      yinsenPath,
-			HasYinsen: true,
+	// Scan each base path
+	for _, basePath := range ps.BasePaths {
+		// Skip if directory doesn't exist
+		if _, err := os.Stat(basePath); os.IsNotExist(err) {
+			continue
 		}
 
-		// Try to read readme for metadata
-		ps.parseProjectMetadata(&project, yinsenPath)
-
-		// Determine status based on task activity
-		project.Status = ps.determineProjectStatus(yinsenPath)
-		
-		// Count tasks
-		project.TaskCount = ps.countTotalTasks(yinsenPath)
-		
-		projects = append(projects, project)
-	}
-
-	// Then scan for proj-* directories
-	entries, err := os.ReadDir(ps.ClientsPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read clients directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "proj-") {
-			projectPath := filepath.Join(ps.ClientsPath, entry.Name())
-			project := Project{
-				Name: entry.Name(),
-				Path: projectPath,
+		// For platform directory, look for direct yinsen folders
+		if strings.Contains(basePath, "platform") {
+			entries, err := os.ReadDir(basePath)
+			if err != nil {
+				continue
 			}
 
-			// Check if yinsen directory exists
-			yinsenPath := filepath.Join(projectPath, "yinsen")
-			if _, err := os.Stat(yinsenPath); err == nil {
-				project.HasYinsen = true
+			for _, entry := range entries {
+				if entry.IsDir() {
+					projectPath := filepath.Join(basePath, entry.Name())
+					yinsenPath := filepath.Join(projectPath, "yinsen")
+					
+					if _, err := os.Stat(yinsenPath); err == nil {
+						projectName := fmt.Sprintf("platform/%s", entry.Name())
+						if !foundProjects[projectName] {
+							project := Project{
+								Name:      projectName,
+								Path:      yinsenPath,
+								HasYinsen: true,
+							}
 
-				// Try to read readme for metadata
-				ps.parseProjectMetadata(&project, yinsenPath)
-
-				// Determine status based on task activity
-				project.Status = ps.determineProjectStatus(yinsenPath)
-				
-				// Count tasks
-				project.TaskCount = ps.countTotalTasks(yinsenPath)
+							ps.parseProjectMetadata(&project, yinsenPath)
+							project.Status = ps.determineProjectStatus(yinsenPath)
+							project.TaskCount = ps.countTotalTasks(yinsenPath)
+							
+							projects = append(projects, project)
+							foundProjects[projectName] = true
+						}
+					}
+				}
+			}
+		} else {
+			// For clients and engagements, look for proj-* directories
+			entries, err := os.ReadDir(basePath)
+			if err != nil {
+				continue
 			}
 
-			projects = append(projects, project)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					projectPath := filepath.Join(basePath, entry.Name())
+					
+					// Check for special alpha-omega yinsen directory with trailing space
+					if entry.Name() == "alpha-omega" {
+						yinsenPath := filepath.Join(projectPath, "yinsen ")
+						if _, err := os.Stat(yinsenPath); err == nil {
+							if !foundProjects["Alpha-Omega"] {
+								project := Project{
+									Name:      "Alpha-Omega",
+									Path:      yinsenPath,
+									HasYinsen: true,
+								}
+
+								ps.parseProjectMetadata(&project, yinsenPath)
+								project.Status = ps.determineProjectStatus(yinsenPath)
+								project.TaskCount = ps.countTotalTasks(yinsenPath)
+								
+								projects = append(projects, project)
+								foundProjects["Alpha-Omega"] = true
+							}
+						}
+					}
+					
+					// Check for regular yinsen directories in proj-* folders
+					if strings.HasPrefix(entry.Name(), "proj-") {
+						yinsenPath := filepath.Join(projectPath, "yinsen")
+						if _, err := os.Stat(yinsenPath); err == nil {
+							if !foundProjects[entry.Name()] {
+								project := Project{
+									Name:      entry.Name(),
+									Path:      yinsenPath,
+									HasYinsen: true,
+								}
+
+								ps.parseProjectMetadata(&project, yinsenPath)
+								project.Status = ps.determineProjectStatus(yinsenPath)
+								project.TaskCount = ps.countTotalTasks(yinsenPath)
+								
+								projects = append(projects, project)
+								foundProjects[entry.Name()] = true
+							}
+						}
+					}
+				}
+			}
 		}
 	}
+
+	// Sort projects by name
+	sort.Slice(projects, func(i, j int) bool {
+		return projects[i].Name < projects[j].Name
+	})
 
 	return projects, nil
 }
@@ -110,12 +157,18 @@ func (ps *ProjectScanner) DiscoverProjects() ([]Project, error) {
 func (ps *ProjectScanner) GetProjectTasks(projectName string) ([]Task, error) {
 	var tasks []Task
 
+	// Find the project to get its path
+	projects, err := ps.DiscoverProjects()
+	if err != nil {
+		return nil, err
+	}
+
 	var yinsenPath string
-	if projectName == "Alpha-Omega" {
-		// Special case for Alpha-Omega project with Yinsen directory (with trailing space)
-		yinsenPath = filepath.Join(ps.ClientsPath, "alpha-omega", "yinsen ")
-	} else {
-		yinsenPath = filepath.Join(ps.ClientsPath, projectName, "yinsen")
+	for _, project := range projects {
+		if project.Name == projectName {
+			yinsenPath = project.Path
+			break
+		}
 	}
 
 	// Define kanban directories and their status
@@ -332,7 +385,11 @@ var upgrader = websocket.Upgrader{
 
 func main() {
 	scanner := &ProjectScanner{
-		ClientsPath: "/Users/corelogic/satori-dev/clients",
+		BasePaths: []string{
+			"/Users/corelogic/satori-dev/clients",
+			"/Users/corelogic/satori-dev/engagements",
+			"/Users/corelogic/satori-dev/platform",
+		},
 	}
 
 	// Serve static files
@@ -394,7 +451,10 @@ func main() {
 	})
 
 	fmt.Println("🚀 Alpha-Omega Dashboard starting on http://localhost:9999")
-	fmt.Println("📊 Monitoring projects in /Users/corelogic/satori-dev/clients")
+	fmt.Println("📊 Monitoring projects in:")
+	fmt.Println("   - /Users/corelogic/satori-dev/clients")
+	fmt.Println("   - /Users/corelogic/satori-dev/engagements")
+	fmt.Println("   - /Users/corelogic/satori-dev/platform")
 
 	log.Fatal(http.ListenAndServe(":9999", nil))
 }

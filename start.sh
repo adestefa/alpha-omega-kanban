@@ -15,7 +15,7 @@ if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
     if ps -p $PID > /dev/null 2>&1; then
         echo "⚠️  Alpha-Omega is already running (PID: $PID)"
-        echo "🌐 Dashboard available at: http://localhost:8080"
+        echo "🌐 Dashboard available at: http://localhost:9999"
         exit 1
     else
         echo "🧹 Cleaning up stale PID file..."
@@ -48,8 +48,11 @@ echo $SERVER_PID > "$PID_FILE"
 sleep 2
 if ps -p $SERVER_PID > /dev/null 2>&1; then
     echo "✅ Alpha-Omega started successfully!"
-    echo "🌐 Dashboard: http://localhost:8080"
-    echo "📊 Monitoring: /Users/corelogic/satori-dev/clients"
+    echo "🌐 Dashboard: http://localhost:9999"
+    echo "📊 Monitoring:"
+    echo "   - /Users/corelogic/satori-dev/clients"
+    echo "   - /Users/corelogic/satori-dev/engagements"
+    echo "   - /Users/corelogic/satori-dev/platform"
     echo "📋 PID: $SERVER_PID"
     echo "📝 Logs: $PROJECT_DIR/server.log"
 else
