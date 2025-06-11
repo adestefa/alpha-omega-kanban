@@ -69,7 +69,7 @@
                             Satori AI Development Command Center
                         </div>
                         <div class="text-xs text-gray-500">
-                            v1.1.0
+                            v1.2.0
                         </div>
                     </div>
                 </div>
@@ -259,14 +259,14 @@
 
     <!-- Task Modal -->
     <div id="task-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+        <div class="bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
             <div class="flex items-center justify-between mb-4">
                 <h3 id="modal-title" class="text-xl font-semibold text-blue-400"></h3>
                 <button id="close-modal" class="text-gray-400 hover:text-white">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div id="modal-content" class="text-gray-300">
+            <div id="modal-content" class="text-gray-300 flex-1 overflow-y-auto">
                 <!-- Task details will be loaded here -->
             </div>
             <div class="mt-6 flex space-x-3">
@@ -426,7 +426,7 @@
 
             createTaskCard(task) {
                 const card = document.createElement('div');
-                card.className = `task-card bg-white rounded-lg p-3 cursor-pointer priority-${task.priority.toLowerCase()}`;
+                card.className = `task-card bg-white rounded-lg p-3 cursor-pointer priority-${task.priority.toLowerCase()} relative`;
                 
                 const typeIcon = task.type === 'defect' ? 'fas fa-bug text-red-500' : 'fas fa-tasks text-blue-500';
                 
@@ -439,13 +439,31 @@
                         <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">${task.priority}</span>
                     </div>
                     <h4 class="text-sm font-semibold text-gray-800 mb-2 line-clamp-2">${task.title}</h4>
-                    <div class="flex items-center justify-between text-xs text-gray-500">
+                    <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
                         <span>${task.project}</span>
                         ${task.created_date ? `<span>${new Date(task.created_date).toLocaleDateString()}</span>` : ''}
                     </div>
+                    <button class="run-btn w-full bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-1.5 px-3 rounded flex items-center justify-center transition-colors">
+                        <i class="fas fa-play mr-1.5"></i>
+                        Run Claude
+                    </button>
                 `;
                 
-                card.addEventListener('click', () => this.showTaskModal(task));
+                // Add click event to card (but not the button)
+                card.addEventListener('click', (e) => {
+                    // Don't open modal if clicking the run button
+                    if (!e.target.closest('.run-btn')) {
+                        this.showTaskModal(task);
+                    }
+                });
+                
+                // Add click event to run button
+                const runBtn = card.querySelector('.run-btn');
+                runBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.runClaudeForTask(task);
+                });
+                
                 return card;
             }
 
@@ -455,21 +473,62 @@
                 const content = document.getElementById('modal-content');
                 
                 title.textContent = `${task.type.toUpperCase()}-${task.id}: ${task.title}`;
+                
+                // Format the task content for display
+                let formattedContent = '';
+                if (task.content) {
+                    // Convert markdown to basic HTML formatting
+                    formattedContent = task.content
+                        .split('\n')
+                        .map(line => {
+                            // Handle headers
+                            if (line.startsWith('# ')) return `<h2 class="text-xl font-bold mt-4 mb-2">${line.substring(2)}</h2>`;
+                            if (line.startsWith('## ')) return `<h3 class="text-lg font-semibold mt-3 mb-1">${line.substring(3)}</h3>`;
+                            if (line.startsWith('### ')) return `<h4 class="text-md font-semibold mt-2">${line.substring(4)}</h4>`;
+                            
+                            // Handle bold text
+                            line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                            
+                            // Handle list items
+                            if (line.startsWith('- ')) return `<li class="ml-4">${line.substring(2)}</li>`;
+                            if (line.match(/^\d+\. /)) return `<li class="ml-4">${line}</li>`;
+                            
+                            // Handle empty lines
+                            if (line.trim() === '') return '<br>';
+                            
+                            // Regular paragraphs
+                            return `<p>${line}</p>`;
+                        })
+                        .join('\n');
+                }
+                
                 content.innerHTML = `
-                    <div class="space-y-4">
-                        <div>
-                            <strong>Status:</strong> ${task.status}
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        <div class="grid grid-cols-2 gap-4 pb-4 border-b border-gray-700">
+                            <div>
+                                <strong class="text-gray-400">Status:</strong> 
+                                <span class="text-${task.status === 'queue' ? 'yellow' : task.status === 'dev' ? 'blue' : task.status === 'qa' ? 'pink' : 'green'}-400">${task.status.toUpperCase()}</span>
+                            </div>
+                            <div>
+                                <strong class="text-gray-400">Priority:</strong> 
+                                <span class="text-${task.priority === 'HIGH' ? 'red' : task.priority === 'MEDIUM' ? 'yellow' : 'green'}-400">${task.priority}</span>
+                            </div>
+                            <div>
+                                <strong class="text-gray-400">Type:</strong> ${task.type}
+                            </div>
+                            <div>
+                                <strong class="text-gray-400">Project:</strong> ${task.project}
+                            </div>
+                            ${task.created_date ? `<div class="col-span-2"><strong class="text-gray-400">Created:</strong> ${new Date(task.created_date).toLocaleString()}</div>` : ''}
+                            <div class="col-span-2">
+                                <strong class="text-gray-400">File:</strong> 
+                                <code class="bg-gray-700 px-2 py-1 rounded text-xs">${task.file_path}</code>
+                            </div>
                         </div>
-                        <div>
-                            <strong>Priority:</strong> ${task.priority}
+                        
+                        <div class="task-content text-gray-300">
+                            ${formattedContent || '<p class="text-gray-500">No additional content available</p>'}
                         </div>
-                        <div>
-                            <strong>Project:</strong> ${task.project}
-                        </div>
-                        <div>
-                            <strong>File Path:</strong> <code class="bg-gray-700 px-2 py-1 rounded text-sm">${task.file_path}</code>
-                        </div>
-                        ${task.created_date ? `<div><strong>Created:</strong> ${new Date(task.created_date).toLocaleString()}</div>` : ''}
                     </div>
                 `;
                 
@@ -484,9 +543,25 @@
 
             startClaudeCode() {
                 if (this.currentTask) {
-                    alert(`Starting Claude Code for ${this.currentTask.type.toUpperCase()}-${this.currentTask.id}\n\nThis will spawn a Claude Code instance in:\n${this.currentTask.file_path}`);
-                    // TODO: Implement actual Claude Code spawning via MCP
+                    this.runClaudeForTask(this.currentTask);
                 }
+            }
+            
+            runClaudeForTask(task) {
+                // For now, show an alert with the command that would be executed
+                const command = `claude "execute task ${task.id}"`;
+                alert(`Starting Claude Code for ${task.type.toUpperCase()}-${task.id}\n\nCommand: ${command}\n\nProject: ${task.project}\nFile: ${task.file_path}\n\nNote: This will be connected to actual Claude Code execution in Task 4.`);
+                
+                // TODO: In Task 4, this will make an API call to execute the command
+                // fetch('/api/claude/execute', {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({ 
+                //         taskId: task.id,
+                //         project: task.project,
+                //         filePath: task.file_path 
+                //     })
+                // });
             }
 
             hideKanbanBoard() {

@@ -38,6 +38,7 @@ type Task struct {
 	CreatedDate time.Time `json:"created_date"`
 	Project     string    `json:"project"`
 	FilePath    string    `json:"file_path"`
+	Content     string    `json:"content"`
 }
 
 // ProjectScanner handles project discovery and parsing
@@ -177,6 +178,7 @@ func (ps *ProjectScanner) parseTaskFile(filePath, status, projectName string) (T
 		Project:  projectName,
 		FilePath: filePath,
 		Type:     "task",
+		Content:  string(content),
 	}
 
 	// Extract task ID from filename
